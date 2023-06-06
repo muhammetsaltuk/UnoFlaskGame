@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <!-- Meta -->
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+    />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <!-- Title -->
+    <title>FlaskChatApp</title>
+    <!--Styles-->
+    <link rel="stylesheet" href="/public/css/styles.css" />
+    <!-- JQuery -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+      integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!-- SocketIO -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"
+      integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA=="
+      crossorigin="anonymous"
+    ></script>
+    <!-- CyriptoJS -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"
+      integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+  </head>
+
+  <body class="game">
+    <div class="game_wrapper">
+      <div class="game_form">
+        <input
+          class="login-input"
+          id="username"
+          type="text"
+          name="username"
+          placeholder="Kullanıcı Adı"
+        />
+        <button class="login-btn" id="create_room_btn" type="submit">Yeni Oyun Oluştur</button>
+        <input
+          class="login-input"
+          id="join_room_code"
+          name="code"
+          type="text"
+          placeholder="Oyun Kodu"
+        />
+        <button class="login-btn" id="join_code_room_btn" type="submit">Oyuna Katıl</button>
+        <ul id="game_rooms"></ul>
+      </div>
+    </div>
+
+    <script type="text/javascript" charset="utf-8">
+      var socket = io();
+
+      $(document).ready(function () {
+        // Create Room
+        $("#create_room_btn").click(() => {
+          let username = $("#username").val();
+          let code = Math.floor(Math.random() * (99999999 - 10000000 + 1)) + 10000000; // Oyun kodu oluşturu
+          let hash = CryptoJS.SHA256(code).toString(); // oyun hashi oluşturur (Şifreleme)
+          window.location.href = "/?hash=" + hash + "&code=" + code + "&username=" + username; // oyun hashini URL e yazdırrı
+        });
+
+        // Join Code Room
+        $("#join_code_room_btn").click(() => {
+          let username = $("#username").val();
+          let code = $("#join_room_code").val();
+          let hash = CryptoJS.SHA256(code).toString();
+          window.location.href = "/?hash=" + hash + "&code=" + code + "&username=" + username;
+        });
+
+        // Listern Rooms Render
+        socket.on("rooms", function (data) {
+          $("#game_rooms").html("");
+          Object.values(data.rooms).map((room) => {
+            $("#game_rooms").append(
+              "<li><button " +
+                (room.game.status ? "disabled" : "") +
+                " class='join_room_btn' code='" +
+                room.code +
+                "'>" +
+                Object.keys(room.users).length +
+                "/4</button> " +
+                Object.keys(room.users).join(" - ") +
+                (room.game.status ? "- Oyunda" : "- Oyuncu Bekleniyor...") +
+                "</li>"
+            );
+          });
+          // Listedeki odalara girme
+          $(".join_room_btn").click(function () {
+            let username = $("#username").val();
+            let code = $(this).attr("code");
+            let hash = CryptoJS.SHA256(code).toString();
+            window.location.href = "/?hash=" + hash + "&code=" + code + "&username=" + username;
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

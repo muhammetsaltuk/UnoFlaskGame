@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <!-- Meta -->
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+    />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <!-- Title -->
+    <title>FlaskChatApp</title>
+    <!--Styles-->
+    <link rel="stylesheet" href="/public/css/styles.css" />
+    <!-- JQuery -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+      integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!-- SocketIO -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"
+      integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA=="
+      crossorigin="anonymous"
+    ></script>
+  </head>
+
+  <body class="game">
+    <button id="exit_room">Çıkış</button>
+    <div id="game_middle"></div>
+    <div id="game_user_top"></div>
+    <div id="game_user_left"></div>
+    <div id="game_user_right"></div>
+    <div id="game_user_bottom"></div>
+    <div id="game_user_top_name"></div>
+    <div id="game_user_left_name"></div>
+    <div id="game_user_right_name"></div>
+    <div id="game_user_bottom_name"></div>
+    <div id="colorarea"></div>
+    <div id="deck" class="deck"></div>
+    <div id="game_message" class="game_message">Oyuncular Bekleniyor...</div>
+
+    <script type="text/javascript" charset="utf-8">
+      var socket = io(); // soket kurulur
+      $.urlParam = function (name) {
+        var results = new RegExp("[\?&]" + name + "=([^&#]*)").exec(window.location.search);
+        return results !== null ? results[1] || 0 : false;
+      }; // urldeki değişkenler
+
+      const renderCart = (cart, back = false) => {
+        if (!back) {
+          if (cart == "wilddrawfour" || cart == "wild") {
+            return "<div cart-id='" + cart + "' class='cart cart-" + cart + "'></div>";
+          } else {
+            let [color, number] = cart.split("-");
+            return (
+              "<div cart-id='" +
+              cart +
+              "' class='cart cart-" +
+              number +
+              " cart-" +
+              color +
+              "'></div>"
+            );
+          }
+        } else {
+          return "<div cart-id='" + cart + "' class='cart cart-back'></div>";
+        }
+      };
+      const renderRoom = (room, code, hash, username) => {
+        try {
+          if (room?.game?.status == 1) {
+            $("#deck").css("display", "flex");
+            $("#game_message").css("display", "none");
+          } else {
+            $("#deck").css("display", "none");
+            $("#game_message").css("display", "flex");
+          }
+
+          $("#colorarea").css("border-color", room?.game?.color);
+          $("#deck").html("");
+          $("#game_middle").html("");
+          $("#game_user_bottom").html("");
+          $("#game_user_top").html("");
+          $("#game_user_right").html("");
+          $("#game_user_left").html("");
+
+          if (room?.users[username]?.gamer == 1) {
+            $("#game_user_bottom_name").css("opacity", 1);
+            $("#game_user_bottom").css("opacity", 1);
+          } else {
+            $("#game_user_bottom_name").css("opacity", 0.1);
+            $("#game_user_bottom").css("opacity", 0.1);
+          }
+
+          $("#game_user_bottom_name").html(
+            username + " (" + room?.users[username]?.carts.length + ")"
+          );
+
+          room?.users[username]?.carts?.map((cart) => {
+            $("#game_user_bottom").append(renderCart(cart));
+            $(".cart[cart-id='" + cart + "']").click(function () {
+              if (room?.users[username]?.gamer == 1) {
+                if (cart == "wilddrawfour" || cart == "wild") {
+                  let selectColor = window.prompt(
+                    "Lütfen devam edecek rengi giriniz (red,blue,yellow,green)",
+                    "red"
+                  );
+                  socket.emit("send_cart", { username, cartId: cart, code, selectColor });
+                } else if (
+                  cart.indexOf("drawtwo") > -1 ||
+                  cart.indexOf("skip") > -1 ||
+                  cart.indexOf("reverse") > -1
+                ) {
+                  let [color, number] = cart.split("-");
+                  let [middle_color, middle_number] =
+                    room?.game.middle[room.game.middle.length - 1].split("-");
+                  if (color == room.game.color || number == middle_number) {
+                    socket.emit("send_cart", { username, cartId: cart, code, selectColor: null });
+                  } else {
+                    alert("Bu Kartı Atamazsınız!");
+                  }
+                } else {
+                  let [color, number] = cart.split("-");
+                  let [middle_color, middle_number] =
+                    room?.game.middle[room?.game.middle.length - 1].split("-");
+                  if (color == room?.game.color || number == middle_number)
+                    socket.emit("send_cart", { username, cartId: cart, code, selectColor: null });
+                  else {
+                    alert("Bu Kartı Atamazsınız!");
+                  }
+                }
+              }
+            });
+          });
+          room?.game.middle.map((cart) => {
+            $("#game_middle").append(renderCart(cart));
+          });
+          Object.values(room?.users)
+            .filter((user) => user.username !== username)
+            .map((user, index) => {
+              user?.carts?.map((cart) => {
+                let element = null;
+                if (index == 0) element = $("#game_user_top");
+                if (index == 1) element = $("#game_user_left");
+                if (index == 2) element = $("#game_user_right");
+                element.append(renderCart(cart, true));
+                if (user?.gamer == 1) element.css("opacity", 1);
+                else element.css("opacity", 0.1);
+              });
+              let name_e = null;
+              if (index == 0) name_e = $("#game_user_top_name");
+              if (index == 1) name_e = $("#game_user_left_name");
+              if (index == 2) name_e = $("#game_user_right_name");
+              name_e.html(user.username + " (" + room?.users[user.username]?.carts.length + ")");
+              if (user?.gamer == 1) name_e.css("opacity", 1);
+              else name_e.css("opacity", 0.1);
+            });
+        } catch (e) {}
+      };
+
+      $("document").ready(() => {
+        var code = $.urlParam("code"); // url deki oyun kodu
+        var hash = $.urlParam("hash"); // url oyuncu hashı
+        var username = $.urlParam("username");// url oyuncu adı
+        if (code && hash && username) {
+          // Connect
+          socket.on("connect", function () {
+            socket.emit("join_room", { code, hash, username });
+          });
+          $("#exit_room").click(() => {
+            socket.emit("exit_room", { code, hash, username });
+            window.location.href = "/login";
+          });
+          $("#deck").click(() => {
+            socket.emit("get_deck_cart", { code, hash, username });
+          });
+          socket.on("game_start", function (data) { 
+            let room = data.rooms[code];
+            console.log("started");
+            renderRoom(room, code, hash, username);
+          });
+          // Listern Rooms
+          socket.on("rooms", function (data) {
+            let room = data.rooms[code];
+            console.log(room);
+            renderRoom(room, code, hash, username);
+          });
+          socket.on("alert", function (data) {
+            if (data.ended && confirm(data.message)) {
+              socket.emit("exit_room", { code, hash, username });
+              window.location.href = "/login";
+            }else{
+              alert(data.message)
+            }
+          });
+          setInterval(() => {
+            socket.emit("get_rooms", { code, hash, username });
+          }, 1000); // her 1000msde bir bağlantı kontrol eder
+        } else {
+          window.location.href = "/login"; // Giriş sayfasına atar
+        }
+      });
+    </script>
+  </body>
+</html>
